@@ -23,7 +23,8 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   onboardToken: z.string().min(8),
-  identityToken: z.string().min(8),
+  /** A Privy access token (preferred) or identity token. */
+  sessionToken: z.string().min(8),
   limits: z
     .object({
       maxTradeUsdc: z.number().positive().max(10_000),
@@ -44,7 +45,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { onboardToken, identityToken, limits } = parsed.data;
+  const { onboardToken, sessionToken, limits } = parsed.data;
 
   const user = await getUserByOnboardToken(onboardToken);
   if (!user) {
@@ -59,7 +60,7 @@ export async function POST(request: Request): Promise<Response> {
   // one Privy says belongs to this session — not one named in the request.
   let privyUser;
   try {
-    privyUser = await verifiedPrivyUser(identityToken);
+    privyUser = await verifiedPrivyUser(sessionToken);
   } catch {
     return Response.json({ error: "Could not verify your Privy session." }, { status: 401 });
   }

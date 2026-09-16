@@ -1,6 +1,6 @@
 "use client";
 
-import { useIdentityToken } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useState } from "react";
 
 import { AuthedPanel } from "@/components/authed-panel";
@@ -37,17 +37,18 @@ interface PoliciesData {
 }
 
 export function PoliciesView() {
-  const { identityToken } = useIdentityToken();
+  const { getAccessToken } = usePrivy();
   const [busy, setBusy] = useState(false);
 
   const act = useCallback(
     async (body: Record<string, unknown>, reload: () => Promise<void>) => {
-      if (!identityToken) return;
       setBusy(true);
       try {
+        const token = await getAccessToken();
+        if (!token) return;
         await fetch("/api/policies", {
           method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${identityToken}` },
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
           body: JSON.stringify(body),
         });
         await reload();
@@ -55,7 +56,7 @@ export function PoliciesView() {
         setBusy(false);
       }
     },
-    [identityToken],
+    [getAccessToken],
   );
 
   return (

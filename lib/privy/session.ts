@@ -29,14 +29,29 @@ export function identityTokenFrom(request: Request): string | null {
 }
 
 /**
- * Verify an identity token and return the Privy user it describes.
+ * Verify a Privy token and return the user it describes.
  *
- * `users().get` performs the JWKS verification itself, so a forged or expired
- * token fails here rather than being taken at face value.
+ * Prefers the **access token**, because every logged-in session has one. The
+ * identity token is optional in Privy and an app can be configured without it,
+ * which previously left the authorize step permanently disabled with no
+ * explanation. Access tokens carry only a user id, so the linked accounts are
+ * then read from Privy's own record rather than from anything the client said.
+ *
+ * Verification is done by the SDK against the app's JWKS, so a forged or expired
+ * token fails here instead of being taken at face value.
  */
-export async function verifiedPrivyUser(identityToken: string): Promise<PrivyUser> {
+export async function verifiedPrivyUser(token: string): Promise<PrivyUser> {
+  const privy = getPrivy();
+
   try {
-    return await getPrivy().users().get({ id_token: identityToken });
+    const claims = await privy.utils().auth().verifyAccessToken(token);
+    return await privy.users()._get(claims.user_id);
+  } catch {
+    // Fall through: the caller may legitimately have sent an identity token.
+  }
+
+  try {
+    return await privy.users().get({ id_token: token });
   } catch {
     throw new UnauthorizedError("Your session could not be verified. Sign in again.");
   }

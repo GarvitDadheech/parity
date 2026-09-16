@@ -1,6 +1,6 @@
 "use client";
 
-import { useIdentityToken, usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 
 /**
@@ -24,19 +24,24 @@ export function AuthedPanel<T extends { linked: boolean }>({
   emptyBody: React.ReactNode;
   children: (data: T, reload: () => Promise<void>) => React.ReactNode;
 }) {
-  const { ready, authenticated, login } = usePrivy();
-  const { identityToken } = useIdentityToken();
+  const { ready, authenticated, login, getAccessToken } = usePrivy();
 
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    if (!identityToken) return;
     setLoading(true);
     try {
+      // Access tokens exist for every logged-in session; identity tokens are
+      // optional per app, so relying on them would break this page silently.
+      const token = await getAccessToken();
+      if (!token) {
+        setError("Your session expired. Log in again.");
+        return;
+      }
       const response = await fetch(endpoint, {
-        headers: { authorization: `Bearer ${identityToken}` },
+        headers: { authorization: `Bearer ${token}` },
         cache: "no-store",
       });
       const body = await response.json();
@@ -48,10 +53,10 @@ export function AuthedPanel<T extends { linked: boolean }>({
     } finally {
       setLoading(false);
     }
-  }, [endpoint, identityToken]);
+  }, [endpoint, getAccessToken]);
 
   useEffect(() => {
-    if (!identityToken) return;
+    if (!authenticated) return;
 
     // Deferred out of the effect body so the first paint is the skeleton rather
     // than a cascading re-render.
@@ -62,7 +67,7 @@ export function AuthedPanel<T extends { linked: boolean }>({
       window.clearTimeout(kickoff);
       if (timer !== undefined) window.clearInterval(timer);
     };
-  }, [identityToken, load, refreshMs]);
+  }, [authenticated, load, refreshMs]);
 
   if (!ready) return <PanelSkeleton />;
 

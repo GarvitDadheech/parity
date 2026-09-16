@@ -1,6 +1,6 @@
 "use client";
 
-import { useIdentityToken, usePrivy, useSigners } from "@privy-io/react-auth";
+import { usePrivy, useSigners } from "@privy-io/react-auth";
 import { useCreateWallet, useWallets } from "@privy-io/react-auth/solana";
 import { useCallback, useEffect, useState } from "react";
 
@@ -31,8 +31,7 @@ interface LinkStatus {
  * they consent, not buried.
  */
 export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
-  const { ready, authenticated, login, user } = usePrivy();
-  const { identityToken } = useIdentityToken();
+  const { ready, authenticated, login, user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
   const { addSigners } = useSigners();
@@ -119,12 +118,17 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
    * must not record a user as ready to trade.
    */
   const handleGrant = useCallback(async () => {
-    if (!wallet || !onboardToken || !identityToken) return;
+    if (!wallet || !onboardToken) return;
 
     setGranting(true);
     setError(null);
 
     try {
+      const sessionToken = await getAccessToken();
+      if (!sessionToken) {
+        throw new Error("Your session expired. Reload the page and log in again.");
+      }
+
       if (!signerId) {
         throw new Error(
           "NEXT_PUBLIC_PRIVY_SIGNER_ID is not set. Register Parity's authorization public key in " +
@@ -139,7 +143,7 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           onboardToken,
-          identityToken,
+          sessionToken,
           limits: {
             maxTradeUsdc,
             dailyCapUsdc,
@@ -161,7 +165,7 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
   }, [
     addSigners,
     dailyCapUsdc,
-    identityToken,
+    getAccessToken,
     maxImpactPct,
     maxTradeUsdc,
     onboardToken,
@@ -207,6 +211,17 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
       </div>
     );
   }
+
+  const blockedReason = !authenticated
+    ? "Log in first — step 1 above."
+    : !wallet
+      ? "Create your wallet first — step 2 above."
+      : !signerId
+        ? "This deployment is missing its Privy signer id, so Parity can't be authorized. " +
+          "Set NEXT_PUBLIC_PRIVY_SIGNER_ID and restart."
+        : dailyCapUsdc < maxTradeUsdc
+          ? "Raise your daily cap above your per-trade cap first."
+          : null;
 
   const loginState: StepState = authenticated ? "done" : "active";
   const walletState: StepState = !authenticated ? "todo" : wallet ? "done" : "active";
@@ -329,11 +344,19 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
         <div className="mt-8">
           <PrimaryButton
             onClick={handleGrant}
-            disabled={!wallet || granting || !identityToken}
+            disabled={Boolean(blockedReason) || granting}
             loading={granting}
           >
             {granting ? "Authorizing…" : "Authorize Parity"}
           </PrimaryButton>
+
+          {/*
+            A disabled button with no explanation is a dead end. Say which step
+            is missing, so the fix is obvious without reading the page twice.
+          */}
+          {blockedReason && (
+            <p className="text-ink-dim mt-3 max-w-prose text-xs leading-relaxed">{blockedReason}</p>
+          )}
         </div>
       </Step>
 
