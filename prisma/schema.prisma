@@ -1,0 +1,179 @@
+// Parity — NAV-aware trading for tokenized pre-IPO stocks on Solana.
+//
+// Postgres in every real environment. The models below are the audit trail as
+// much as the application state: every automated decision the trigger engine
+// makes is reconstructable from AlertState and Trade after the fact.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  telegramId   BigInt   @id
+  privyUserId  String?  @unique
+  /// Privy embedded wallet id — the handle the server signer acts through.
+  walletId     String?  @unique
+  /// Solana public key of that wallet.
+  walletAddr   String?
+  /// The user has authorized Parity's server signer on their wallet.
+  signerActive Boolean  @default(false)
+  /// Kill switch. While true, no automated execution runs for this user at all.
+  paused       Boolean  @default(false)
+
+  // Spending limits, agreed at onboarding and enforced server-side on every
+  // trade regardless of what the UI or the bot asked for.
+  maxTradeUsdc Float    @default(50)
+  dailyCapUsdc Float    @default(200)
+  slippageBps  Int      @default(100)
+
+  /// Opaque token that ties a Telegram chat to an onboarding web session.
+  onboardToken String?  @unique
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  watches      Watch[]
+  policies     Policy[]
+  trades       Trade[]
+}
+
+/// Written every poll. This is what makes the NAV-vs-price history chart possible,
+/// so it is populated from the very first tick rather than added later.
+model PriceSnapshot {
+  id         Int      @id @default(autoincrement())
+  symbol     String
+  markPrice  Float
+  tokenPrice Float
+  premiumPct Float
+  ts         DateTime @default(now())
+
+  @@index([symbol, ts])
+}
+
+/// One row per symbol, upserted each poll. Every trading decision reads the gap
+/// from here or from the live API — never from a value baked into code.
+model LatestPrice {
+  symbol     String   @id
+  markPrice  Float
+  tokenPrice Float
+  premiumPct Float
+  mint       String?
+  name       String?
+  tradable   Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+}
+
+/// Alert only. Fires a message, never spends money.
+model Watch {
+  id           Int      @id @default(autoincrement())
+  telegramId   BigInt
+  symbol       String
+  /// "discount" | "premium"
+  direction    String
+  /// Always a positive magnitude; the direction carries the sign.
+  thresholdPct Float
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [telegramId], references: [telegramId], onDelete: Cascade)
+
+  @@index([telegramId])
+  @@index([symbol, active])
+}
+
+/// Auto-execute. Pre-authorized at onboarding, bounded by the user's caps.
+model Policy {
+  id           Int      @id @default(autoincrement())
+  telegramId   BigInt
+  /// "autobuy" | "autosell"
+  kind         String
+  symbol       String
+  thresholdPct Float
+  /// For autobuy: how many dollars to spend when it fires.
+  amountUsdc   Float?
+  /// For autosell: how many tokens to sell. Null means the whole position.
+  amountToken  Float?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [telegramId], references: [telegramId], onDelete: Cascade)
+
+  @@index([telegramId])
+  @@index([symbol, active])
+}
+
+/// Hysteresis state, one row per (user, symbol, rule).
+///
+/// `currentlyTriggered` is what stops a policy buying the same dip on every
+/// 30-second tick. It is read and written inside the same transaction as the
+/// execution decision, so two overlapping polls cannot both decide to fire.
+model AlertState {
+  telegramId         BigInt
+  symbol             String
+  /// "watch:<id>" or "policy:<id>"
+  ruleKey            String
+  currentlyTriggered Boolean   @default(false)
+  lastFiredAt        DateTime?
+
+  @@id([telegramId, symbol, ruleKey])
+}
+
+/// Every attempted swap, written before the signer is called and updated after.
+/// A row with status "pending" and no signature is a real outcome worth seeing,
+/// not a gap in the log.
+model Trade {
+  id            Int      @id @default(autoincrement())
+  telegramId    BigInt
+  /// "manual_buy" | "manual_sell" | "auto_buy" | "auto_sell"
+  kind          String
+  symbol        String
+  usdcAmount    Float?
+  tokenAmount   Float?
+  /// The NAV gap at the moment of execution — the reason this trade happened.
+  premiumAtExec Float
+  txSig         String?
+  /// "pending" | "confirmed" | "failed" | "dry_run"
+  status        String
+  error         String?
+  /// True when this ran with execution disabled, so demo trades are never
+  /// mistaken for real ones in the history.
+  dryRun        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [telegramId], references: [telegramId], onDelete: Cascade)
+
+  @@index([telegramId])
+  @@index([createdAt])
+}
+
+/// A pending manual trade awaiting Confirm in the chat.
+///
+/// Held server-side rather than encoded in the button so a user cannot edit the
+/// amount by crafting a callback, and so a stale preview can be rejected on price.
+model PendingTrade {
+  id           String   @id
+  telegramId   BigInt
+  kind         String
+  symbol       String
+  mint         String
+  usdcAmount   Float?
+  tokenAmount  Float?
+  quotedPrice  Float
+  premiumPct   Float
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([telegramId])
+}
+
+/// Cooperative lock so overlapping cron invocations cannot both run a tick.
+model SystemLock {
+  key       String   @id
+  holder    String
+  expiresAt DateTime
+}

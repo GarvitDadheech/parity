@@ -1,0 +1,24 @@
+# Local Postgres for Parity development.
+#
+# Port 5434 on the host to stay clear of any other Postgres already running.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: parity-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: parity
+      POSTGRES_PASSWORD: parity
+      POSTGRES_DB: parity
+    ports:
+      - "5434:5432"
+    volumes:
+      - parity-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parity -d parity"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  parity-pgdata:

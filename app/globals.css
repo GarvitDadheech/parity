@@ -1,26 +1,98 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Parity — stark monochrome terminal.
+ *
+ * The whole system is flat: hairlines separate things, never cards or shadows.
+ * Amber is the only brand colour; green and red are reserved for the direction
+ * of the NAV gap and appear on the number itself, never as a background.
+ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+@theme {
+  --color-canvas: #080809;
+  --color-surface: #0e0e10;
+  --color-surface-hover: #141417;
+  --color-hairline: #1c1c20;
+  --color-hairline-strong: #2a2a30;
+
+  --color-ink: #ededef;
+  --color-ink-dim: #8e8e96;
+  --color-ink-faint: #5a5a62;
+
+  --color-accent: #e0a43c;
+  --color-accent-dim: #8a6524;
+
+  --color-discount: #45b26b;
+  --color-premium: #e0524a;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  color-scheme: dark;
+}
+
+html {
+  background-color: var(--color-canvas);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numbers never jitter as they update. */
+.tnum {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/*
+ * A single focus ring definition, so every interactive element agrees.
+ * Amber against near-black clears 3:1 comfortably.
+ */
+@layer base {
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+/*
+ * Motion is minimal and always opt-out. Nothing here is decorative: the pulse
+ * signals live data, and the flash signals a value that just changed.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes parity-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  .live-dot {
+    animation: parity-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes parity-rise {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .rise {
+    animation: parity-rise 240ms cubic-bezier(0, 0, 0.2, 1) both;
+  }
+}
+
+/* Hairline that survives fractional device pixel ratios. */
+.hairline {
+  border-color: var(--color-hairline);
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #08080a;
 }
