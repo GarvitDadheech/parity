@@ -194,6 +194,7 @@ npm run poll -- 30    # every 30 seconds
 ### Verifying
 
 ```bash
+npm run verify:creds    # proves every configured credential actually works
 npm run verify          # 39 checks: math, hysteresis, scaled amounts, live routing, engine
 npm run verify:mints    # reads all 8 mints from chain, cross-checks amount conversion
 npm run verify:outage   # proves the feed survives a total PreStocks outage
