@@ -60,7 +60,6 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
       // cause a cascading render. The flag is never reset: the alert it drives
       // is rendered only while `ready` is still false, so a late success hides
       // it without any extra state juggling.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       () => setInitTimedOut(true),
       8_000,
     );
