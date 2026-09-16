@@ -14,7 +14,8 @@
     "postinstall": "prisma generate",
     "verify:outage": "tsx --env-file=.env scripts/verify-outage.ts",
     "bot:setup": "tsx --env-file=.env scripts/setup-bot.ts",
-    "poll": "tsx --env-file=.env scripts/poll-worker.ts"
+    "poll": "tsx --env-file=.env scripts/poll-worker.ts",
+    "verify:mints": "tsx --env-file=.env scripts/verify-mints.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

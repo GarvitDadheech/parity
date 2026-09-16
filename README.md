@@ -195,8 +195,13 @@ npm run poll -- 30    # every 30 seconds
 
 ```bash
 npm run verify          # 39 checks: math, hysteresis, scaled amounts, live routing, engine
+npm run verify:mints    # reads all 8 mints from chain, cross-checks amount conversion
 npm run verify:outage   # proves the feed survives a total PreStocks outage
 ```
+
+`verify:mints` is the one that catches a missed multiplier: it converts a Jupiter quote using the
+multiplier read from chain and checks the resulting dollar value against what the swap is actually
+worth. A wrong multiplier shows up immediately as a 5x discrepancy.
 
 `npm run verify` hits the real PreStocks API and real Jupiter, and drives the real trigger engine
 against a temporary user — including proving that an armed watch fires exactly once and that a
