@@ -38,12 +38,34 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
   const [linked, setLinked] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [initTimedOut, setInitTimedOut] = useState(false);
+
   const [maxTradeUsdc, setMaxTradeUsdc] = useState(50);
   const [dailyCapUsdc, setDailyCapUsdc] = useState(200);
   const [slippagePct, setSlippagePct] = useState(1);
 
   const wallet = wallets[0];
   const signerId = process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID;
+
+  /**
+   * Privy fails silently when the page's origin is not on its allowlist: the
+   * iframe handshake never completes, no error is raised, and `ready` simply
+   * stays false. Left alone that renders as a spinner forever, which tells the
+   * user nothing. After eight seconds we say what is most likely wrong instead.
+   */
+  useEffect(() => {
+    if (ready) return;
+    const timer = window.setTimeout(
+      // Fires 8s later from a timer rather than during the effect, so it cannot
+      // cause a cascading render. The flag is never reset: the alert it drives
+      // is rendered only while `ready` is still false, so a late success hides
+      // it without any extra state juggling.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      () => setInitTimedOut(true),
+      8_000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [ready]);
 
   // Validate the link from the bot before asking anyone to log in — a stale link
   // should fail here, not after they have created a wallet.
@@ -192,8 +214,23 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
               created and held by Privy on your behalf.
             </p>
             <PrimaryButton onClick={login} disabled={!ready} loading={!ready}>
-              {ready ? "Log in" : "Loading…"}
+              {ready ? "Log in" : "Connecting\u2026"}
             </PrimaryButton>
+
+            {initTimedOut && !ready && (
+              <div role="alert" className="border-hairline-strong mt-5 max-w-prose rounded-sm border px-4 py-3">
+                <p className="text-ink text-xs font-medium">Login isn&rsquo;t loading.</p>
+                <p className="text-ink-dim mt-2 text-xs leading-relaxed">
+                  This almost always means this site&rsquo;s address isn&rsquo;t on the wallet
+                  provider&rsquo;s allowed-origins list, so its secure frame never finishes
+                  connecting. Add{" "}
+                  <code className="text-ink break-all">
+                    {typeof window !== "undefined" ? window.location.origin : ""}
+                  </code>{" "}
+                  to the allowed origins in the Privy dashboard, then reload this page.
+                </p>
+              </div>
+            )}
           </>
         )}
       </Step>
