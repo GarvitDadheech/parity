@@ -3,9 +3,8 @@
  *
  * Every network call is stubbed to fail before the feed module is loaded, so the
  * in-process cache is genuinely empty and the only thing that can answer is the
- * LatestPrice table the poller writes. This is the path a judge hits if the
- * upstream API rate-limits during the demo, so it is worth proving rather than
- * assuming.
+ * LatestPrice table the poller writes. This is the path every reader hits if the
+ * upstream API rate-limits, so it is worth proving rather than assuming.
  */
 
 const realFetch = globalThis.fetch;

@@ -10,8 +10,8 @@ company — SpaceX, OpenAI, Anthropic, Anduril. That backing has a value (the **
 Parity computes that gap across every listed company, alerts you when it crosses a threshold you
 set, and can execute the trade for you — inside limits you agreed to, with a kill switch.
 
-At the time of writing, SpaceX trades **~20% below** what it is backed by and Neuralink trades
-**~7.5% above**. That is the product.
+As this is written, SpaceX trades **~20% below** what it is backed by while Neuralink trades
+**~7% above**. Those gaps move daily — Parity reads them live rather than assuming them.
 
 > Not financial advice. A discount to fair value does not guarantee a profit — a private company's
 > token can trade below its backing indefinitely. This is not arbitrage: there is no second
@@ -101,8 +101,8 @@ status `pending` and no signature is a real, visible outcome.
 
 `DRY_RUN=true` ships as the default. Every path runs for real — quote, transaction build, policy
 checks, database writes — except the final handoff to Privy's signer. Flip one environment
-variable for the live demo swap. Dry-run trades are recorded as such and never counted against
-spend.
+variable when you are ready to execute for real. Dry-run trades are recorded as such and never
+counted against spend.
 
 A dry run is a full rehearsal rather than an early exit: it evaluates every guardrail and
 *reports* which ones would have refused the trade, instead of aborting on the first. That means
@@ -288,8 +288,3 @@ scripts/                verify, outage test, bot setup, standalone poller
 
 The core math lives in exactly one place — `lib/prestocks/math.ts` — and the dashboard, the bot and
 the trigger engine all read from it.
-
----
-
-Built for the [Stocklana](https://hackathons.solana.com/hackathons/stocklana) hackathon,
-**Best Use of PreStocks**.

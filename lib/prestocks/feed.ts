@@ -78,7 +78,7 @@ export async function loadFeed(
     if (!hasDatabase()) throw error;
 
     // Upstream is unreachable and nothing is cached. The poller's rows are the
-    // last thing standing between a judge and an error page.
+    // last thing standing between the reader and an error page.
     const rows = await prisma.latestPrice.findMany({ orderBy: { premiumPct: "asc" } });
     if (rows.length === 0) throw error;
 
