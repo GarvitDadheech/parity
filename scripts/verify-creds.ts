@@ -60,11 +60,12 @@ async function main() {
       // How many people have actually completed onboarding.
       const users = await getPrivy().users().list({ limit: 20 });
       const list = users.data ?? [];
+      const isEmbeddedSolana = (account: unknown): boolean => {
+        const a = account as { chain_type?: string; connector_type?: string };
+        return a.chain_type === "solana" && a.connector_type === "embedded";
+      };
       const withSolana = list.filter((u) =>
-        (u.linked_accounts ?? []).some(
-          (a: { chain_type?: string; connector_type?: string }) =>
-            a.chain_type === "solana" && a.connector_type === "embedded",
-        ),
+        (u.linked_accounts ?? []).some(isEmbeddedSolana),
       );
       ok(
         "Privy users readable",
@@ -106,14 +107,12 @@ async function main() {
     const hook = await bot.api.getWebhookInfo();
     ok("Telegram bot token", `@${me.username}`);
     if (hook.url) {
-      const secured = hook.has_custom_certificate || true;
       ok("Webhook registered", hook.url);
       if (hook.last_error_message) {
         no("Webhook delivering cleanly", `Telegram's last error: ${hook.last_error_message}`);
       } else {
         ok("No webhook delivery errors", `${hook.pending_update_count} pending`);
       }
-      void secured;
     } else {
       no("Webhook registered", "run: npm run bot:setup -- <public-url>");
     }

@@ -16,7 +16,8 @@ let passed = 0;
 let failed = 0;
 
 function check(ok: boolean, line: string) {
-  ok ? passed++ : failed++;
+  if (ok) passed += 1;
+  else failed += 1;
   console.log(`  ${ok ? "PASS" : "FAIL"}  ${line}`);
 }
 
