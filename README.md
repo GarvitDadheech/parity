@@ -87,8 +87,9 @@ time and has no rolling window):
 - **price-impact ceiling**, held separately from slippage tolerance. They measure different
   risks: slippage is how far the price may drift between quoting and landing, impact is what
   your size costs against the book right now. PreStocks markets are thin enough that a $10
-  SPACEX buy carries ~2.5% impact, so conflating the two would refuse trades on exactly the
-  tokens with the widest discounts.
+  SPACEX buy carries ~3.7% impact — and measurably the *same* impact at $5, $25 or $100,
+  because it is the pool's spread rather than a function of size. Conflating the two would
+  refuse trades on exactly the tokens with the widest discounts.
 - **balance check** against the live chain
 - **kill switch** — `paused` halts all automated execution immediately, and is checked *before* a
   rule is claimed so a paused user's policies stay armed rather than being silently consumed
@@ -143,6 +144,22 @@ looking. Parity layers three defences (`lib/prestocks/feed.ts`):
    outage
 
 `npm run verify:outage` proves the third layer by stubbing the network to fail.
+
+### A note on liquidity
+
+These books are small, and impact is close to flat across trade sizes:
+
+| Token | Gap to NAV | Impact at $5 | at $25 | at $100 |
+|---|---|---|---|---|
+| SPACEX | −25.4% | 3.68% | 3.70% | 3.80% |
+| FIGUREAI | −6.6% | 0.50% | 1.10% | 1.27% |
+| ANTHROPIC | −5.6% | 0.94% | 0.94% | 0.94% |
+| KALSHI | −3.2% | 1.46% | 1.97% | 1.97% |
+
+The practical consequence: trading SPACEX at all needs a price-impact ceiling above ~4%, and
+trimming the size will not get you under it. That is a property of the market, not of the
+trade, which is why Parity reports impact separately and says so rather than suggesting a
+smaller order.
 
 ---
 

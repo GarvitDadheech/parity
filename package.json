@@ -17,7 +17,8 @@
     "poll": "tsx --env-file=.env scripts/poll-worker.ts",
     "verify:mints": "tsx --env-file=.env scripts/verify-mints.ts",
     "verify:creds": "tsx --env-file=.env scripts/verify-creds.ts",
-    "verify:dryrun": "tsx --env-file=.env scripts/verify-dryrun.ts"
+    "verify:dryrun": "tsx --env-file=.env scripts/verify-dryrun.ts",
+    "demo:dryrun": "tsx --env-file=.env scripts/demo-dryrun.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

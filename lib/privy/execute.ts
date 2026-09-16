@@ -243,8 +243,10 @@ async function checkLimits(params: {
   const impactBps = summary.priceImpactPct * 100;
   if (impactBps > user.maxPriceImpactBps) {
     violations.push(
-      `Price impact is ${summary.priceImpactPct.toFixed(2)}%, above your ${(user.maxPriceImpactBps / 100).toFixed(2)}% ceiling. ` +
-        "This market is thin — try a smaller size.",
+      `Price impact is ${summary.priceImpactPct.toFixed(2)}%, above your ` +
+        `${(user.maxPriceImpactBps / 100).toFixed(2)}% ceiling. On these markets the impact is ` +
+        "mostly the pool's own spread, so a smaller size often won't help — either raise the " +
+        "ceiling for this token or pick one with a tighter book.",
     );
   }
 
