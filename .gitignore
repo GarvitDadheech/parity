@@ -47,3 +47,6 @@ next-env.d.ts
 
 # generated keypair for the Privy server signer
 /.secrets
+
+# the original build brief, kept local
+PROMPT.MD
