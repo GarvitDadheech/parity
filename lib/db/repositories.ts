@@ -43,6 +43,7 @@ export async function linkWallet(params: {
   maxTradeUsdc?: number;
   dailyCapUsdc?: number;
   slippageBps?: number;
+  maxPriceImpactBps?: number;
 }): Promise<User> {
   return prisma.user.update({
     where: { telegramId: params.telegramId },
@@ -54,6 +55,9 @@ export async function linkWallet(params: {
       ...(params.maxTradeUsdc !== undefined ? { maxTradeUsdc: params.maxTradeUsdc } : {}),
       ...(params.dailyCapUsdc !== undefined ? { dailyCapUsdc: params.dailyCapUsdc } : {}),
       ...(params.slippageBps !== undefined ? { slippageBps: params.slippageBps } : {}),
+      ...(params.maxPriceImpactBps !== undefined
+        ? { maxPriceImpactBps: params.maxPriceImpactBps }
+        : {}),
     },
   });
 }
@@ -64,7 +68,12 @@ export async function setPaused(telegramId: bigint, paused: boolean): Promise<Us
 
 export async function updateLimits(
   telegramId: bigint,
-  limits: { maxTradeUsdc?: number; dailyCapUsdc?: number; slippageBps?: number },
+  limits: {
+    maxTradeUsdc?: number;
+    dailyCapUsdc?: number;
+    slippageBps?: number;
+    maxPriceImpactBps?: number;
+  },
 ): Promise<User> {
   return prisma.user.update({ where: { telegramId }, data: limits });
 }

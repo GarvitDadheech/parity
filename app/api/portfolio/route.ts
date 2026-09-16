@@ -65,6 +65,7 @@ export async function GET(request: Request): Promise<Response> {
         maxTradeUsdc: user.maxTradeUsdc,
         dailyCapUsdc: user.dailyCapUsdc,
         slippageBps: user.slippageBps,
+        maxPriceImpactBps: user.maxPriceImpactBps,
         spentToday,
       },
       cash: { usdc, sol },

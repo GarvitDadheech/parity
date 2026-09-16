@@ -84,7 +84,11 @@ time and has no rolling window):
 - **daily cap** across a rolling 24 hours, counting pending trades as well as confirmed ones, so a
   burst of triggers cannot outrun the limit before any settle
 - **per-trade cap**, checked against the *quoted* size rather than the requested one
-- **price-impact ceiling** derived from the quote about to be signed
+- **price-impact ceiling**, held separately from slippage tolerance. They measure different
+  risks: slippage is how far the price may drift between quoting and landing, impact is what
+  your size costs against the book right now. PreStocks markets are thin enough that a $10
+  SPACEX buy carries ~2.5% impact, so conflating the two would refuse trades on exactly the
+  tokens with the widest discounts.
 - **balance check** against the live chain
 - **kill switch** — `paused` halts all automated execution immediately, and is checked *before* a
   rule is claimed so a paused user's policies stay armed rather than being silently consumed
@@ -98,6 +102,12 @@ status `pending` and no signature is a real, visible outcome.
 checks, database writes — except the final handoff to Privy's signer. Flip one environment
 variable for the live demo swap. Dry-run trades are recorded as such and never counted against
 spend.
+
+A dry run is a full rehearsal rather than an early exit: it evaluates every guardrail and
+*reports* which ones would have refused the trade, instead of aborting on the first. That means
+you can exercise the whole flow — real quote, real caps, real database rows — on an unfunded
+wallet, and see exactly what would have happened. In live mode the first violation is still a
+hard refusal.
 
 ---
 
@@ -197,6 +207,7 @@ npm run poll -- 30    # every 30 seconds
 npm run verify:creds    # proves every configured credential actually works
 npm run verify          # 39 checks: math, hysteresis, scaled amounts, live routing, engine
 npm run verify:mints    # reads all 8 mints from chain, cross-checks amount conversion
+npm run verify:dryrun   # rehearses a real buy with no funds, reporting what would block it
 npm run verify:outage   # proves the feed survives a total PreStocks outage
 ```
 

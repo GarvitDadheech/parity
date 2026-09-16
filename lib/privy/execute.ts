@@ -62,6 +62,8 @@ export interface SwapResult {
   /** Human-readable explanation, suitable for sending straight to the chat. */
   message: string;
   quote?: QuoteSummary;
+  /** Guardrails that would have refused this, reported only on a dry run. */
+  blockedBy?: string[];
 }
 
 export interface QuoteSummary {
@@ -73,6 +75,7 @@ export interface QuoteSummary {
   executionPrice: number;
   priceImpactPct: number;
   slippageBps: number;
+  maxPriceImpactBps: number;
   route: string[];
 }
 
@@ -133,6 +136,7 @@ export async function quoteSwap(params: {
         executionPrice: tokensOut > 0 ? usdcAmount / tokensOut : 0,
         priceImpactPct: priceImpactPct(quote),
         slippageBps,
+        maxPriceImpactBps: params.user.maxPriceImpactBps,
         route: routeLabels(quote),
       },
     };
@@ -169,68 +173,86 @@ export async function quoteSwap(params: {
       executionPrice: tokenAmount > 0 ? usdcOut / tokenAmount : 0,
       priceImpactPct: priceImpactPct(quote),
       slippageBps,
+      maxPriceImpactBps: params.user.maxPriceImpactBps,
       route: routeLabels(quote),
     },
   };
 }
 
 /**
- * Check the guardrails that Parity owns.
+ * Evaluate every guardrail Parity owns and report what fails.
  *
  * Privy's own policy covers the program allowlist and the per-transaction
  * transfer cap. These are the ones it structurally cannot do: a rolling daily
  * window, a comparison against the user's live balance, and a price-impact
  * ceiling derived from the quote we are about to sign.
+ *
+ * This returns violations rather than throwing so that a dry run can rehearse
+ * the whole decision and *report* what would have stopped it. In live mode the
+ * caller turns the first violation into a refusal, so behaviour is unchanged
+ * where it matters.
  */
-async function assertWithinLimits(params: {
+async function checkLimits(params: {
   user: User;
   kind: TradeKind;
   summary: QuoteSummary;
-}): Promise<void> {
+}): Promise<string[]> {
   const { user, summary } = params;
   const isBuy = params.kind === "manual_buy" || params.kind === "auto_buy";
+  const violations: string[] = [];
 
   if (user.paused) {
-    throw new GuardrailError("Execution is paused. Send /resume to re-enable trading.");
+    violations.push("Execution is paused. Send /resume to re-enable trading.");
   }
   if (!user.signerActive || !user.walletId || !user.walletAddr) {
-    throw new GuardrailError("Wallet is not set up yet. Send /login to finish onboarding.");
+    violations.push("Wallet is not set up yet. Send /login to finish onboarding.");
+    // Everything below needs a wallet, so there is nothing further to say.
+    return violations;
   }
 
   if (isBuy) {
     if (summary.usdcAmount > user.maxTradeUsdc) {
-      throw new GuardrailError(
-        `That trade is $${summary.usdcAmount.toFixed(2)}, above your per-trade cap of $${user.maxTradeUsdc.toFixed(2)}.`,
+      violations.push(
+        `That trade is ${fmtUsd(summary.usdcAmount)}, above your per-trade cap of ${fmtUsd(user.maxTradeUsdc)}.`,
       );
     }
 
     const alreadySpent = await spentLast24h(user.telegramId);
     if (alreadySpent + summary.usdcAmount > user.dailyCapUsdc) {
-      throw new GuardrailError(
-        `That trade would take today's spend to $${(alreadySpent + summary.usdcAmount).toFixed(2)}, ` +
-          `above your daily cap of $${user.dailyCapUsdc.toFixed(2)}.`,
+      violations.push(
+        `That trade would take today's spend to ${fmtUsd(alreadySpent + summary.usdcAmount)}, ` +
+          `above your daily cap of ${fmtUsd(user.dailyCapUsdc)}.`,
       );
     }
 
     const balance = await getUsdcBalance(user.walletAddr);
     if (balance < summary.usdcAmount) {
-      throw new GuardrailError(
-        `Not enough USDC: the wallet holds $${balance.toFixed(2)} and this needs $${summary.usdcAmount.toFixed(2)}.`,
+      violations.push(
+        `Not enough USDC: the wallet holds ${fmtUsd(balance)} and this needs ${fmtUsd(summary.usdcAmount)}.`,
       );
     }
   }
 
-  // Price impact is a different thing from slippage tolerance — it is the cost
-  // the route imposes right now, before any market movement. Signing a quote
-  // whose impact already exceeds the user's tolerance would honour the letter of
-  // their slippage setting while ignoring its point.
+  // Price impact is checked against its own ceiling, not against the slippage
+  // tolerance. They measure different risks: slippage is how far the price may
+  // drift between quoting and landing, while impact is what this size costs
+  // against the book right now — and it is already reflected in the quoted
+  // output the user is shown. PreStocks markets are thin enough that a $10 buy
+  // can carry several percent of impact, so conflating the two would refuse
+  // every trade on the very tokens with the widest discounts.
   const impactBps = summary.priceImpactPct * 100;
-  if (impactBps > summary.slippageBps) {
-    throw new GuardrailError(
-      `Price impact is ${summary.priceImpactPct.toFixed(2)}%, above your ${(summary.slippageBps / 100).toFixed(2)}% limit. ` +
-        "Try a smaller size.",
+  if (impactBps > user.maxPriceImpactBps) {
+    violations.push(
+      `Price impact is ${summary.priceImpactPct.toFixed(2)}%, above your ${(user.maxPriceImpactBps / 100).toFixed(2)}% ceiling. ` +
+        "This market is thin — try a smaller size.",
     );
   }
+
+  return violations;
+}
+
+function fmtUsd(value: number): string {
+  return `$${value.toFixed(2)}`;
 }
 
 async function confirmSignature(connection: Connection, signature: string): Promise<boolean> {
@@ -261,9 +283,14 @@ export async function executeSwap(request: SwapRequest): Promise<SwapResult> {
     side,
   });
 
-  await assertWithinLimits({ user: request.user, kind: request.kind, summary });
-
   const dryRun = config.dryRun();
+  const violations = await checkLimits({ user: request.user, kind: request.kind, summary });
+
+  // Live: the first violation is a refusal. Dry run: nothing can be spent, so
+  // rehearse the whole thing and report what would have stopped it instead.
+  if (violations.length > 0 && !dryRun) {
+    throw new GuardrailError(violations[0]);
+  }
 
   // The row goes in before anything irreversible happens.
   const trade = await createTrade({
@@ -275,17 +302,26 @@ export async function executeSwap(request: SwapRequest): Promise<SwapResult> {
     premiumAtExec: request.premiumAtExec,
     status: dryRun ? "dry_run" : "pending",
     dryRun,
+    error: dryRun && violations.length > 0 ? violations.join(" | ").slice(0, 500) : null,
   });
 
   if (dryRun) {
+    const rehearsal =
+      `DRY RUN — nothing was executed.\n\n` +
+      `Would have swapped ${summary.inputLabel} → ${summary.outputLabel} ` +
+      `at ${summary.priceImpactPct.toFixed(2)}% price impact via ${summary.route.join(" + ") || "Jupiter"}.`;
+
     return {
-      ok: true,
+      ok: violations.length === 0,
       tradeId: trade.id,
       dryRun: true,
       quote: summary,
+      blockedBy: violations,
       message:
-        `DRY RUN — nothing was executed. Would have swapped ${summary.inputLabel} → ${summary.outputLabel} ` +
-        `at ${summary.priceImpactPct.toFixed(2)}% price impact via ${summary.route.join(" + ") || "Jupiter"}.`,
+        violations.length === 0
+          ? `${rehearsal}\n\nAll guardrails passed — this would have gone through.`
+          : `${rehearsal}\n\nBut it would have been BLOCKED:\n` +
+            violations.map((v) => `· ${v}`).join("\n"),
     };
   }
 

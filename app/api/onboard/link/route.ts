@@ -14,6 +14,8 @@ import { z } from "zod";
 
 import { config } from "@/lib/config";
 import { getUserByOnboardToken, linkWallet } from "@/lib/db/repositories";
+import { notifyUser } from "@/bot/notify";
+import { onboardedMessage } from "@/bot/messages/onboarded";
 import { findSolanaWallet, privyConfigured } from "@/lib/privy/server";
 import { verifiedPrivyUser } from "@/lib/privy/session";
 
@@ -27,6 +29,7 @@ const bodySchema = z.object({
       maxTradeUsdc: z.number().positive().max(10_000),
       dailyCapUsdc: z.number().positive().max(50_000),
       slippageBps: z.number().int().min(10).max(500),
+      maxPriceImpactBps: z.number().int().min(10).max(2000).optional(),
     })
     .optional(),
 });
@@ -83,7 +86,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  await linkWallet({
+  const linked = await linkWallet({
     telegramId: user.telegramId,
     privyUserId: privyUser.id,
     walletId: wallet.walletId,
@@ -91,9 +94,26 @@ export async function POST(request: Request): Promise<Response> {
     maxTradeUsdc: limits?.maxTradeUsdc,
     dailyCapUsdc: limits?.dailyCapUsdc,
     slippageBps: limits?.slippageBps,
+    maxPriceImpactBps: limits?.maxPriceImpactBps,
   });
 
+  // Hand the user back to the chat they came from. This is deliberately after
+  // the wallet is linked and deliberately non-fatal: the setup already
+  // succeeded, so a Telegram hiccup must not report it as a failure.
+  const notified = await notifyUser(
+    user.telegramId,
+    onboardedMessage({
+      walletAddress: wallet.address,
+      maxTradeUsdc: linked.maxTradeUsdc,
+      dailyCapUsdc: linked.dailyCapUsdc,
+      slippageBps: linked.slippageBps,
+      maxPriceImpactBps: linked.maxPriceImpactBps,
+      dryRun: config.dryRun(),
+    }),
+  );
+
   return Response.json({
+    notified: notified.sent,
     ok: true,
     walletAddress: wallet.address,
     telegramLinked: true,

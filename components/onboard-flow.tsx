@@ -13,7 +13,12 @@ interface LinkStatus {
   valid: boolean;
   alreadyConnected?: boolean;
   walletAddress?: string | null;
-  limits?: { maxTradeUsdc: number; dailyCapUsdc: number; slippageBps: number };
+  limits?: {
+    maxTradeUsdc: number;
+    dailyCapUsdc: number;
+    slippageBps: number;
+    maxPriceImpactBps?: number;
+  };
 }
 
 /**
@@ -43,6 +48,7 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
   const [maxTradeUsdc, setMaxTradeUsdc] = useState(50);
   const [dailyCapUsdc, setDailyCapUsdc] = useState(200);
   const [slippagePct, setSlippagePct] = useState(1);
+  const [maxImpactPct, setMaxImpactPct] = useState(3);
 
   const wallet = wallets[0];
   const signerId = process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID;
@@ -83,6 +89,9 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
           setMaxTradeUsdc(data.limits.maxTradeUsdc);
           setDailyCapUsdc(data.limits.dailyCapUsdc);
           setSlippagePct(data.limits.slippageBps / 100);
+          if (data.limits.maxPriceImpactBps) {
+            setMaxImpactPct(data.limits.maxPriceImpactBps / 100);
+          }
         }
       } catch {
         setStatus({ valid: false });
@@ -135,6 +144,7 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
             maxTradeUsdc,
             dailyCapUsdc,
             slippageBps: Math.round(slippagePct * 100),
+            maxPriceImpactBps: Math.round(maxImpactPct * 100),
           },
         }),
       });
@@ -152,6 +162,7 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
     addSigners,
     dailyCapUsdc,
     identityToken,
+    maxImpactPct,
     maxTradeUsdc,
     onboardToken,
     signerId,
@@ -183,9 +194,11 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
         <h2 className="text-ink text-lg font-medium tracking-tight">You&rsquo;re set up.</h2>
         <p className="text-ink-dim mt-3 max-w-prose text-sm leading-relaxed">
           Parity can now execute trades from this wallet, up to {usd(maxTradeUsdc)} per trade and{" "}
-          {usd(dailyCapUsdc)} per day. Head back to Telegram — try{" "}
-          <code className="text-ink">/list</code> to see today&rsquo;s gaps, or{" "}
-          <code className="text-ink">/autobuy SPACEX 15 50</code> to arm your first policy.
+          {usd(dailyCapUsdc)} per day.
+        </p>
+        <p className="text-ink-dim mt-4 max-w-prose text-sm leading-relaxed">
+          <span className="text-ink">Check Telegram</span> — the bot has just sent you your wallet
+          address and what to fund it with. Everything from here happens in the chat.
         </p>
         <p className="text-ink-faint mt-6 max-w-prose text-xs leading-relaxed">
           You can revoke this at any time with <code className="text-ink-dim">/pause</code> in the
@@ -259,7 +272,7 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
           server on every single trade, not just in the interface.
         </p>
 
-        <div className="grid gap-5 sm:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <LimitField
             id="max-trade"
             label="Max per trade"
@@ -291,7 +304,18 @@ export function OnboardFlow({ onboardToken }: { onboardToken: string | null }) {
             max={5}
             step={0.1}
             onChange={setSlippagePct}
-            help="Trades above this are refused."
+            help="How far the price may drift while the trade lands."
+          />
+          <LimitField
+            id="impact"
+            label="Max price impact"
+            suffix="%"
+            value={maxImpactPct}
+            min={0.1}
+            max={20}
+            step={0.5}
+            onChange={setMaxImpactPct}
+            help="What your size may cost against a thin book. These markets are small, so 3% is a sane floor."
           />
         </div>
 

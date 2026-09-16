@@ -26,7 +26,12 @@ interface PolicyRow {
 interface PoliciesData {
   linked: boolean;
   paused?: boolean;
-  limits?: { maxTradeUsdc: number; dailyCapUsdc: number; slippageBps: number };
+  limits?: {
+    maxTradeUsdc: number;
+    dailyCapUsdc: number;
+    slippageBps: number;
+    maxPriceImpactBps?: number;
+  };
   watches: WatchRow[];
   policies: PolicyRow[];
 }
@@ -101,6 +106,12 @@ export function PoliciesView() {
               <Limit label="Max per trade" value={usd(data.limits.maxTradeUsdc)} />
               <Limit label="Max per day" value={usd(data.limits.dailyCapUsdc)} />
               <Limit label="Max slippage" value={`${(data.limits.slippageBps / 100).toFixed(2)}%`} />
+              {data.limits.maxPriceImpactBps !== undefined && (
+                <Limit
+                  label="Max price impact"
+                  value={`${(data.limits.maxPriceImpactBps / 100).toFixed(2)}%`}
+                />
+              )}
             </section>
           )}
 

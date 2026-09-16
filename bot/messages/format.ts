@@ -101,11 +101,22 @@ export function previewMessage(params: {
     `<b>${verb} ${esc(token.symbol)}</b>\n\n` +
     `${summary.inputLabel} → ${summary.outputLabel}\n` +
     `Price ${usd(summary.executionPrice)} · NAV ${usd(token.markPrice)} · <b>${gapPhrase}</b>\n` +
-    `Price impact ${summary.priceImpactPct.toFixed(2)}% · max slippage ${(summary.slippageBps / 100).toFixed(2)}%\n` +
+    `Price impact ${summary.priceImpactPct.toFixed(2)}%${impactWarning(summary)} · max slippage ${(summary.slippageBps / 100).toFixed(2)}%\n` +
     `Route ${esc(summary.route.join(" + ") || "Jupiter")}\n\n` +
     (params.dryRun ? `⚠️ <b>DRY RUN</b> — confirming will not execute a real swap.\n\n` : "") +
     `<i>${DISCLAIMER}</i>`
   );
+}
+
+/**
+ * Flag an expensive route in the preview itself.
+ *
+ * These markets are thin, so impact is the cost a user is most likely to
+ * overlook — it needs to sit next to the number, not in a footnote.
+ */
+function impactWarning(summary: QuoteSummary): string {
+  if (summary.priceImpactPct >= 2) return " \u26A0\uFE0F thin market";
+  return "";
 }
 
 export function alertMessage(params: { token: PreStock; thresholdPct: number; direction: string }): string {
