@@ -211,12 +211,21 @@ Registers the webhook with the secret token and publishes the command list. Tele
 
 ### Running the poller
 
-Vercel Cron is configured in `vercel.json` at one-minute granularity. For sub-minute ticks, run
-the standalone worker anywhere always-on — it calls the identical service layer:
+The trigger engine needs to tick every 30–60 seconds to catch a crossing while it is still
+there. Vercel's Hobby plan caps cron jobs at once per day, so the poller runs as its own
+process rather than as a platform cron. Two modes:
 
 ```bash
-npm run poll -- 30    # every 30 seconds
+# On a worker host, with the full environment. Calls the service layer directly.
+npm run poll -- 30
+
+# From anywhere, driving a deployment over HTTP. Needs only the URL and CRON_SECRET,
+# so the machine running it holds no other credential.
+POLL_URL=https://your-app.vercel.app npm run poll -- 30
 ```
+
+Either way it is the same `runTick()` behind it, so behaviour and guardrails are identical.
+`/api/cron/poll` is idempotent and holds a lease-based lock, so overlapping callers are safe.
 
 ### Verifying
 
