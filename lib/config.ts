@@ -31,8 +31,22 @@ function flag(key: string, fallback: boolean): boolean {
 }
 
 export const config = {
-  /** Public origin used to build the onboarding link the bot sends. */
-  appUrl: env("NEXT_PUBLIC_APP_URL") ?? env("APP_URL") ?? "http://localhost:3000",
+  /**
+   * Public origin used to build the onboarding link the bot sends.
+   *
+   * Only ever read on the server. On Vercel this falls back to the deployment's
+   * own production URL, so a fresh deploy sends working links before anyone has
+   * remembered to set NEXT_PUBLIC_APP_URL — getting that wrong would send users
+   * an onboarding link pointing at localhost.
+   */
+  appUrl:
+    env("NEXT_PUBLIC_APP_URL") ??
+    env("APP_URL") ??
+    (env("VERCEL_PROJECT_PRODUCTION_URL")
+      ? `https://${env("VERCEL_PROJECT_PRODUCTION_URL")}`
+      : undefined) ??
+    (env("VERCEL_URL") ? `https://${env("VERCEL_URL")}` : undefined) ??
+    "http://localhost:3000",
 
   telegram: {
     botToken: () => requireEnv("TELEGRAM_BOT_TOKEN"),
