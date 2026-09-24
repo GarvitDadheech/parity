@@ -80,6 +80,7 @@ export async function GET(request: Request): Promise<Response> {
         txSig: trade.txSig,
         status: trade.status,
         dryRun: trade.dryRun,
+        error: trade.error,
         createdAt: trade.createdAt.toISOString(),
       })),
     });

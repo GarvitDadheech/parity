@@ -30,6 +30,8 @@ interface TradeRow {
   txSig: string | null;
   status: string;
   dryRun: boolean;
+  /** Why a trade did not go through — a guardrail refusal or an execution error. */
+  error: string | null;
   createdAt: string;
 }
 
@@ -182,7 +184,7 @@ export function PortfolioView() {
                       <span className="tnum text-ink-dim w-16 text-xs">
                         {signedPct(trade.premiumAtExec, 1)}
                       </span>
-                      <StatusPill status={trade.status} dryRun={trade.dryRun} />
+                      <StatusPill status={trade.status} dryRun={trade.dryRun} blocked={Boolean(trade.error)} />
                       <span className="text-ink-faint tnum ml-auto text-[11px]">
                         {timeAgo(trade.createdAt)}
                       </span>
@@ -195,6 +197,17 @@ export function PortfolioView() {
                         >
                           tx
                         </a>
+                      )}
+
+                      {/*
+                        A trade that a guardrail refused must not look like one that
+                        went through. The reason is the useful part — without it the
+                        row claims something happened that did not.
+                      */}
+                      {trade.error && (
+                        <p className="text-ink-dim basis-full text-[11px] leading-relaxed">
+                          {trade.error}
+                        </p>
                       )}
                     </li>
                   ))}
@@ -219,9 +232,21 @@ function labelFor(kind: string): string {
   );
 }
 
-function StatusPill({ status, dryRun }: { status: string; dryRun: boolean }) {
+function StatusPill({
+  status,
+  dryRun,
+  blocked,
+}: {
+  status: string;
+  dryRun: boolean;
+  blocked: boolean;
+}) {
   if (dryRun || status === "dry_run") {
-    return <span className="text-ink-faint text-[11px]">dry run</span>;
+    return (
+      <span className={`text-[11px] ${blocked ? "text-premium" : "text-ink-faint"}`}>
+        {blocked ? "dry run · blocked" : "dry run · would execute"}
+      </span>
+    );
   }
   const tone =
     status === "confirmed" ? "text-discount" : status === "failed" ? "text-premium" : "text-ink-dim";
