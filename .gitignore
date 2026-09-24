@@ -50,3 +50,6 @@ next-env.d.ts
 
 # the original build brief, kept local
 PROMPT.MD
+
+# pitch script, local only
+script.md
