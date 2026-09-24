@@ -64,9 +64,31 @@ export function PortfolioView() {
         const gap = totalNav - totalMarket;
         const blended = totalNav > 0 ? ((totalMarket - totalNav) / totalNav) * 100 : 0;
 
+        const holdsSomething = data.positions.length > 0;
+
         return (
           <div className="rise">
-            <section className="border-hairline grid grid-cols-2 gap-x-6 gap-y-6 border-b pb-8 md:grid-cols-4">
+            {/*
+              With nothing held, every one of these reads $0.00 and the blended
+              gap reads 0.00% — four zeros that say nothing and imply something
+              has gone wrong. An empty portfolio deserves a designed state, not a
+              degenerate case of the populated one.
+            */}
+            {!holdsSomething && (
+              <section className="border-hairline border-b pb-8">
+                <p className="text-ink text-sm">No positions yet.</p>
+                <p className="text-ink-dim mt-2 max-w-prose text-xs leading-relaxed">
+                  Once you hold a PreStock, this is where you&rsquo;ll see what it&rsquo;s worth at
+                  market, what it&rsquo;s worth at the value behind it, and the distance between
+                  the two.
+                </p>
+              </section>
+            )}
+
+            <section
+              className="border-hairline grid grid-cols-2 gap-x-6 gap-y-6 border-b pb-8 md:grid-cols-4"
+              hidden={!holdsSomething}
+            >
               <Stat label="Market value" value={usd(totalMarket)} />
               <Stat label="Value at NAV" value={usd(totalNav)} muted />
               <Stat
@@ -109,13 +131,16 @@ export function PortfolioView() {
             )}
 
             <section className="py-8" aria-labelledby="positions-heading">
-              <h2 id="positions-heading" className="text-ink mb-5 text-sm font-medium">
+              <h2
+                id="positions-heading"
+                className={`text-ink text-sm font-medium ${holdsSomething ? "mb-5" : "mb-3"}`}
+              >
                 Positions
               </h2>
 
-              {data.positions.length === 0 ? (
+              {!holdsSomething ? (
                 <p className="text-ink-dim max-w-prose text-xs leading-relaxed">
-                  Nothing held yet. The{" "}
+                  The{" "}
                   <Link href="/" className="text-accent underline underline-offset-4">
                     markets table
                   </Link>{" "}
