@@ -53,3 +53,6 @@ PROMPT.MD
 
 # pitch script, local only
 script.md
+
+# local demo helper
+rearm.ts
